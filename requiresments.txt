@@ -1,0 +1,6 @@
+requests
+bottle
+records
+demjson
+pandas
+vxUtils

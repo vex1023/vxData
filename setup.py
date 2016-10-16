@@ -18,7 +18,7 @@ version = source_packages.__version__
 home_pages = 'http://github.com/'
 # 作者相关信息
 author = source_packages.__author__
-author_email = source_packages.__authoremail__
+author_email = source_packages.__email__
 # 项目简介
 description = '一句话的项目介绍'
 # 测试用例
@@ -36,7 +36,7 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-requirements = []
+requirements = ['requests']
 
 readme = None
 long_description = ''
@@ -84,7 +84,7 @@ setup(
     include_package_data=True,
     platforms='any',
     test_suite=test_suite,
-    classifiers=classifiers,
+    #classifiers=classifiers,
     extras_require={
         'testing': ['pytest'],
     }
