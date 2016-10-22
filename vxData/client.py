@@ -15,8 +15,8 @@ import demjson as json
 from vxUtils.decorator import retry, timeout, threads
 from vxUtils.PrettyLogger import add_console_logger
 
-logger = logging.getLogger('API')
-add_console_logger(logger, 'debug')
+logger = logging.getLogger('vxData.client')
+add_console_logger(logger, 'info')
 
 
 class API():

@@ -16,12 +16,13 @@ class APIError(Exception):
     ERROR_MSG = 'Success'
 
     def __init__(self, reason):
-        super(TraderError, self).__init__(ERROR_TEMPLATE % (self.ERROR_CODE, self.ERROR_MSG, reason))
+        super(APIError, self).__init__(ERROR_TEMPLATE % (self.ERROR_CODE, self.ERROR_MSG, reason))
 
 class InternalError(APIError):
     ERROR_CODE = '999'
     ERROR_MSG = 'Internal Error'
 
-    pass
 
-
+class NotSupportError(APIError):
+    ERROR_CODE = '-1'
+    ERROR_MSG = 'Not Support APIs'
