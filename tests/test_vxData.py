@@ -1,23 +1,24 @@
 # encoding=utf-8
 
 import unittest
-# import bottle
 import logging
-from vxData.client import API
-from vxData.apiServer import server, hq
-from vxUtils.PrettyLogger import add_console_logger
-
-add_console_logger(logging.getLogger('test_vxData'), 'DEBUG')
-logger = logging.getLogger('test_vxData')
+from vxData import stock
 
 
 class vxDataCase(unittest.TestCase):
-    def setUp(self):
-        server.run(host='0.0.0.0', port='8888')
-
     def test_API(self):
-        api = API('http://127.0.0.1:8080/test/', 'this is a test', 'hello', ['columns1', 'columns2'])
-        logger.info(api(symbols='sz150023', start='1900-01-01', end='2000-01-01').result)
+        print(stock.market_status)
+        print(stock.market_am_open)
+        print(stock.market_am_close)
+        print(stock.market_fm_open)
+        print(stock.market_fm_close)
+        print(stock.hq('sz150023', 'sh000001', 'sh600036'))
+        print(stock.bar('sz150023', start='2010-01-01', ktype='D'))
+        print(stock.bar('sz150023', start='2010-01-01', ktype='W'))
+        print(stock.bar('sz150023', start='2010-01-01', ktype='M'))
+        print(stock.bar('sh510050', start='2010-01-01', ktype='D'))
+        print(stock.bar('sh510050', start='2010-01-01', ktype='W'))
+        print(stock.bar('sh510050', start='2010-01-01', ktype='M'))
 
 
 if __name__ == '__main__':
