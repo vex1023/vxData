@@ -57,14 +57,17 @@ columns:[
 ```
 from vxData import stock
 
-print(stock.bar('sz150023', start='2016-01-01', ktype='D')
+print(stock.bar('sz150023', start='2016-01-01', ktype='D', adjtype='forward')
 
 ```
+
+___如果当前为交易时间，则bar返回当天数据时，自动将当前行情添加进来。___
+
 
 返回一个dataframe格式:
 
 index: date
 
 ```
-columns:['date', 'open', 'close', 'high', 'low', 'volume']
+columns:['date', 'open', 'close', 'high', 'low', 'yclose', 'volume']
 ```
