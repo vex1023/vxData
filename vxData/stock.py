@@ -30,6 +30,12 @@ _SINA_STOCK_KEYS = [
 _BAR_URL_TEMPLATE = \
     'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq%s&param=%s,%s,%s-01-01,%s-12-31,640,qfq&r=%s'
 
+_KTYPE = {
+    'D': 'day',
+    'W': 'week',
+    'M': 'month'
+}
+
 
 class StockExchange():
     def __init__(self, max_worker=5):
@@ -132,6 +138,7 @@ class StockExchange():
                 data.append(d)
         df = pd.DataFrame(data, index=symbols, columns=_SINA_STOCK_KEYS, dtype='float')
         df.index.name = 'symbol'
+        df['volume'] = df['volume'] // 100
         if 'volume' in _SINA_STOCK_KEYS and 'lasttrade' in _SINA_STOCK_KEYS and 'yclose' in _SINA_STOCK_KEYS:
             df.loc[df.volume == 0, 'lasttrade'] = df['yclose']
         return df
@@ -148,6 +155,8 @@ class StockExchange():
                  index : date
                  columns : [symbol, open, high, low, close, volume]
         '''
+
+        # 将start，end转换成datetime格式
         if isinstance(start, str):
             if start == '':
                 start = datetime.now().replace(month=1, day=1, hour=0, minute=0)
@@ -155,21 +164,23 @@ class StockExchange():
                 start = datetime.strptime(start, '%Y-%m-%d')
         if isinstance(end, str):
             if end == '':
-                end = datetime.now().replace(month=12, day=31, hour=0, minute=0)
+                end = datetime.now().replace(hour=0, minute=0, microsecond=0)
             else:
                 end = datetime.strptime(end, '%Y-%m-%d')
-        ktype = ktype.upper()
-        trans_map = {
-            'D': 'day',
-            'W': 'week',
-            'M': 'month'
-        }
-        ktype = trans_map[ktype]
+
+        # 判断是否需要使用最新的行情数据
+        if (end.date() == datetime.today().date()) and (self.market_status != 'close'):
+            hq = self._thread_pools.apply_async(self.hq, args=([symbol]))
+            need_update_hq = True
+        else:
+            need_update_hq = False
+
+        ktype = _KTYPE[ktype.upper()]
 
         data = []
         results = []
 
-        for year in range(start.year, end.year + 1):
+        for year in range(start.year - 1, end.year + 1):
             kwars = {
                 'year': year,
                 'symbol': symbol,
@@ -183,12 +194,24 @@ class StockExchange():
 
         data = self._thread_pools.map(lambda x: x[:6], data)
 
-        df = pd.DataFrame(data, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
+        df = pd.DataFrame(data, columns=['date', 'open', 'close', 'high', 'low', 'volume'], dtype='float')
         df = df.set_index('date')
+        if need_update_hq:
+            hq = hq.get()
+            date = hq.loc[symbol, 'date']
+            df.loc[date, 'open'] = hq.loc[symbol, 'open']
+            df.loc[date, 'close'] = hq.loc[symbol, 'lasttrade']
+            df.loc[date, 'high'] = hq.loc[symbol, 'high']
+            df.loc[date, 'low'] = hq.loc[symbol, 'low']
+            df.loc[date, 'volume'] = hq.loc[symbol, 'volume']
+        else:
+            df = df.loc[df.index <= end.strftime('%Y-%m-%d')]
+
         df['symbol'] = symbol
+        df['yclose'] = df['close'].shift(1)
         df = df.loc[df.index >= start.strftime('%Y-%m-%d')]
-        df = df.loc[df.index <= end.strftime('%Y-%m-%d')]
-        return df[['symbol', 'open', 'high', 'low', 'close', 'volume']]
+
+        return df[['symbol', 'open', 'high', 'low', 'close', 'yclose', 'volume']]
 
     @retry(3)
     def _parser_bar(self, year, symbol, ktype):
