@@ -28,12 +28,17 @@ _SINA_STOCK_KEYS = [
     "ask5_p", "date", "time", "status"]
 
 _BAR_URL_TEMPLATE = \
-    'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq%s&param=%s,%s,%s-01-01,%s-12-31,640,qfq&r=%s'
+    'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_day%s%s&param=%s,%s,%s-01-01,%s-12-31,640,%s&r=%s'
 
 _KTYPE = {
     'D': 'day',
     'W': 'week',
     'M': 'month'
+}
+
+_ADJTYPE = {
+    'forward': 'qfq',
+    'afterward': 'hfq',
 }
 
 
@@ -177,6 +182,11 @@ class StockExchange():
 
         ktype = _KTYPE[ktype.upper()]
 
+        if adjtype:
+            adjtype = _ADJTYPE[adjtype.lower()]
+        else:
+            adjtype = ''
+
         data = []
         results = []
 
@@ -184,7 +194,8 @@ class StockExchange():
             kwars = {
                 'year': year,
                 'symbol': symbol,
-                'ktype': ktype
+                'ktype': ktype,
+                'adjtype': adjtype
             }
             results.append(self._thread_pools.apply_async(self._parser_bar, kwds=kwars))
 
@@ -214,16 +225,16 @@ class StockExchange():
         return df[['symbol', 'open', 'high', 'low', 'close', 'yclose', 'volume']]
 
     @retry(3)
-    def _parser_bar(self, year, symbol, ktype):
-        url = _BAR_URL_TEMPLATE % (year, symbol, ktype, year, year, random())
+    def _parser_bar(self, year, symbol, ktype, adjtype):
+        url = _BAR_URL_TEMPLATE % (adjtype, year, symbol, ktype, year, year, adjtype, random())
         r = requests.get(url)
         r.raise_for_status()
         d = r.text
         d = d.split('=')[1]
         d = json.loads(d)['data']
 
-        if 'qfq%s' % ktype in d[symbol].keys():
-            d = d[symbol]['qfq%s' % ktype]
+        if '%s%s' % (adjtype, ktype) in d[symbol].keys():
+            d = d[symbol]['%s%s' % (adjtype, ktype)]
         else:
             d = d[symbol][ktype]
 
