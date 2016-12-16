@@ -13,6 +13,7 @@ import requests
 import json
 import numpy as np
 import pandas as pd
+from io import BytesIO
 from random import random
 from datetime import datetime, timedelta
 from multiprocessing.pool import ThreadPool as Pool
@@ -40,6 +41,8 @@ _ADJTYPE = {
     'forward': 'qfq',
     'afterward': 'hfq',
 }
+
+_TICK_COLUMNS = ['time', 'price', 'change', 'volume', 'amount', 'type']
 
 
 class StockExchange():
@@ -239,3 +242,29 @@ class StockExchange():
             d = d[symbol][ktype]
 
         return d
+
+    def mbar(self, symbol, ktype='1', adjtype='forward'):
+        pass
+
+    def tick(self, symbol, date=None):
+
+        params = {'symbol': symbol, 'date': date}
+        r = requests.get(url='http://market.finance.sina.com.cn/downxls.php', params=params)
+
+        tick_xls = BytesIO(r.content)
+        tick_val = tick_xls.getvalue()
+        if tick_val.find(b'alert') != -1 or len(tick_val) < 20:
+            df = pd.DataFrame([], columns=['date', 'symbol', 'type', 'price', 'change', 'amount'])
+            df = df.set_index('date')
+            return df
+        else:
+            df = pd.read_table(tick_xls, names=_TICK_COLUMNS, skiprows=[0], encoding='GBK')
+
+        df['date'] = df['time'].apply(lambda x: '%s %s' % (date, x))
+        df = df.set_index('date')
+        d = {'买盘': 'B', '卖盘': 'S', '中性盘': 'M'}
+        df['type'] = df['type'].apply(lambda x: d[x])
+        df['symbol'] = symbol
+        df = df.sort_index()
+
+        return df[['symbol', 'type', 'price', 'change', 'amount']]
