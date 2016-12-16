@@ -71,3 +71,20 @@ index: date
 ```
 columns:['date', 'open', 'close', 'high', 'low', 'yclose', 'volume']
 ```
+
+### 5. 分时数据
+
+```
+from vxData import stock
+
+print(stock.tick('sz300104', '2016-01-01')
+
+```
+
+返回当天的分时数据
+
+index: date
+
+```
+columns: ['symbol', 'type', 'price', 'change', 'amount']
+```
