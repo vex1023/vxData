@@ -20,9 +20,9 @@ home_pages = 'http://github.com/'
 author = source_packages.__author__
 author_email = source_packages.__email__
 # 项目简介
-description = '一句话的项目介绍'
+description = 'A股交易数据包'
 # 测试用例
-test_suite = 'demo.tests.test_demo'
+test_suite = 'vxData.tests.test_API'
 # 项目分类
 classifiers = [
     'Programming Language :: Python3.4',
@@ -36,7 +36,7 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-requirements = ['requests']
+requirements = ['requests', 'pandas', 'vxUtils']
 
 readme = None
 long_description = ''
