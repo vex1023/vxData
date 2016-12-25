@@ -13,10 +13,12 @@ import requests
 import json
 import numpy as np
 import pandas as pd
+from io import BytesIO
 from random import random
 from datetime import datetime, timedelta
 from multiprocessing.pool import ThreadPool as Pool
 from vxUtils.decorator import retry
+from vxData.cache import cache, TTLTimer
 
 _MAX_SINA_HQ_LIST = 800
 
@@ -40,6 +42,8 @@ _ADJTYPE = {
     'forward': 'qfq',
     'afterward': 'hfq',
 }
+
+_TICK_COLUMNS = ['time', 'price', 'change', 'volume', 'amount', 'type']
 
 
 class StockExchange():
@@ -174,7 +178,7 @@ class StockExchange():
                 end = datetime.strptime(end, '%Y-%m-%d')
 
         # 判断是否需要使用最新的行情数据
-        if (end.date() == datetime.today().date()) and (self.market_status != 'close'):
+        if (end.date() >= datetime.today().date()) and (self.market_status != 'close'):
             hq = self._thread_pools.apply_async(self.hq, args=([symbol]))
             need_update_hq = True
         else:
@@ -191,13 +195,13 @@ class StockExchange():
         results = []
 
         for year in range(start.year - 1, end.year + 1):
-            kwars = {
+            kwargs = {
                 'year': year,
                 'symbol': symbol,
                 'ktype': ktype,
                 'adjtype': adjtype
             }
-            results.append(self._thread_pools.apply_async(self._parser_bar, kwds=kwars))
+            results.append(self._thread_pools.apply_async(self._parser_bar, kwds=kwargs))
 
         for result in results:
             result = result.get()
@@ -207,9 +211,16 @@ class StockExchange():
 
         df = pd.DataFrame(data, columns=['date', 'open', 'close', 'high', 'low', 'volume'], dtype='float')
         df = df.set_index('date')
+        df = df.sort_index()
         if need_update_hq:
             hq = hq.get()
             date = hq.loc[symbol, 'date']
+            bar_last_close = df.ix[-1, 'close']
+            hq_yclose = hq.loc[symbol, 'yclose']
+            if bar_last_close != hq_yclose:
+                adj = hq_yclose / bar_last_close
+                df[['open', 'high', 'low', 'close']] = df[['open', 'high', 'low', 'close']] / adj
+
             df.loc[date, 'open'] = hq.loc[symbol, 'open']
             df.loc[date, 'close'] = hq.loc[symbol, 'lasttrade']
             df.loc[date, 'high'] = hq.loc[symbol, 'high']
@@ -220,10 +231,14 @@ class StockExchange():
 
         df['symbol'] = symbol
         df['yclose'] = df['close'].shift(1)
+        df['chg'] = df['close'].pct_change(1) * 100
+        df['chg'] = df['chg'].round(2)
+        df = df[['symbol', 'open', 'high', 'low', 'close', 'yclose', 'chg', 'volume']]
+
         df = df.loc[df.index >= start.strftime('%Y-%m-%d')]
+        return df
 
-        return df[['symbol', 'open', 'high', 'low', 'close', 'yclose', 'volume']]
-
+    @cache(TTLTimer(hours=9))
     @retry(3)
     def _parser_bar(self, year, symbol, ktype, adjtype):
         url = _BAR_URL_TEMPLATE % (adjtype, year, symbol, ktype, year, year, adjtype, random())
@@ -239,3 +254,29 @@ class StockExchange():
             d = d[symbol][ktype]
 
         return d
+
+    def mbar(self, symbol, ktype='1', adjtype='forward'):
+        pass
+
+    def tick(self, symbol, date=None):
+
+        params = {'symbol': symbol, 'date': date}
+        r = requests.get(url='http://market.finance.sina.com.cn/downxls.php', params=params)
+
+        tick_xls = BytesIO(r.content)
+        tick_val = tick_xls.getvalue()
+        if tick_val.find(b'alert') != -1 or len(tick_val) < 20:
+            df = pd.DataFrame([], columns=['date', 'symbol', 'type', 'price', 'change', 'amount'])
+            df = df.set_index('date')
+            return df
+        else:
+            df = pd.read_table(tick_xls, names=_TICK_COLUMNS, skiprows=[0], encoding='GBK')
+
+        df['date'] = df['time'].apply(lambda x: '%s %s' % (date, x))
+        df = df.set_index('date')
+        d = {'买盘': 'B', '卖盘': 'S', '中性盘': 'M'}
+        df['type'] = df['type'].apply(lambda x: d[x])
+        df['symbol'] = symbol
+        df = df.sort_index()
+
+        return df[['symbol', 'type', 'price', 'change', 'amount']]
